@@ -1,0 +1,187 @@
+name: Publish
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pypi-publish
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and validate
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    if: ${{ !github.event.release.prerelease && !github.event.release.draft }}
+
+    steps:
+      - name: Checkout release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify release commit is in main
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor HEAD origin/main
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify release version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          import tomllib
+
+          tag = os.environ["RELEASE_TAG"]
+
+          with open("pyproject.toml", "rb") as f:
+              project = tomllib.load(f)["project"]
+
+          version = project["version"]
+
+          assert re.fullmatch(
+              r"v[0-9]+\.[0-9]+\.[0-9]+", tag
+          ), f"Invalid release tag: {tag}"
+
+          assert tag == f"v{version}", (
+              f"Tag {tag} != pyproject version {version}"
+          )
+
+          assert project["name"] == "24captcha-python"
+
+          init_text = open("captcha24/__init__.py", encoding="utf-8").read()
+          match = re.search(
+              r"""^__version__\s*=\s*["']([^"']+)["']""",
+              init_text,
+              re.M,
+          )
+          assert match, "__version__ not found in captcha24/__init__.py"
+          assert match.group(1) == version, (
+              f"captcha24.__version__ {match.group(1)} != pyproject version {version}"
+          )
+
+          print(f"Release version verified: {version}")
+          PY
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build twine
+
+      - name: Build distributions
+        run: python -m build
+
+      - name: Validate distributions
+        run: python -m twine check --strict dist/*
+
+      - name: Verify wheel metadata and contents
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python - <<'PY'
+          import glob
+          import os
+          import zipfile
+          from email.parser import Parser
+
+          wheels = glob.glob("dist/*.whl")
+          assert len(wheels) == 1, wheels
+
+          expected = os.environ["RELEASE_TAG"][1:]
+
+          with zipfile.ZipFile(wheels[0]) as wheel:
+              files = wheel.namelist()
+
+              assert "captcha24/__init__.py" in files
+
+              metadata_files = [
+                  f for f in files
+                  if f.endswith(".dist-info/METADATA")
+              ]
+
+              assert len(metadata_files) == 1
+
+              metadata = Parser().parsestr(
+                  wheel.read(metadata_files[0]).decode()
+              )
+
+              assert metadata["Name"] == "24captcha-python"
+              assert metadata["Version"] == expected
+
+          assert len(glob.glob("dist/*.tar.gz")) == 1
+
+          print("Wheel metadata and contents verified")
+          PY
+
+      - name: Install and test wheel
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python -m venv /tmp/sdk-check
+
+          /tmp/sdk-check/bin/python -m pip install dist/*.whl
+
+          cd /tmp
+
+          /tmp/sdk-check/bin/python - <<'PY'
+          import os
+          import captcha24
+          from importlib.metadata import version
+
+          expected = os.environ["RELEASE_TAG"][1:]
+          installed = version("24captcha-python")
+
+          assert captcha24.__version__ == expected, (
+              f"captcha24.__version__ {captcha24.__version__} != {expected}"
+          )
+          assert installed == expected, (
+              f"installed version {installed} != {expected}"
+          )
+
+          print("Import successful")
+          print("Installed version:", installed)
+          PY
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    environment:
+      name: pypi
+      url: https://pypi.org/project/24captcha-python/
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

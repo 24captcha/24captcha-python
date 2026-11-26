@@ -1,8 +1,21 @@
-# Python Module for 24Captcha API
+# Python Module for 24Captcha API (captcha solver)
 
-Python 3 package for easy integration with the [24Captcha](https://24captcha.online/) captcha-solving service.
+Python package for easy integration with the [24Captcha](https://24captcha.online/) captcha-solving service.
+Examples of API requests available on the [API captcha solver page](https://24captcha.online/api-docs/).
 
-API docs: https://24captcha.online/api-docs/
+- [Python Module for 24Captcha API (captcha solver)](#python-module-for-24captcha-api-captcha-solver)
+  - [Installation](#installation)
+  - [Development](#development)
+  - [Configuration](#configuration)
+    - [Captcha24 instance options](#captcha24-instance-options)
+  - [Solve captcha](#solve-captcha)
+  - [Balance](#balance)
+  - [Manual send / get\_result](#manual-send--get_result)
+  - [Error handling](#error-handling)
+  - [Async](#async)
+  - [Examples](#examples)
+  - [License](#license)
+    - [Graphics and Trademarks](#graphics-and-trademarks)
 
 ## Installation
 
@@ -51,16 +64,26 @@ from captcha24 import AsyncCaptcha24
 solver = AsyncCaptcha24("YOUR_API_KEY")
 ```
 
-Options:
+Also, there are a few options that can be configured:
 
 ```python
-solver = Captcha24(
-    apiKey="YOUR_API_KEY",
-    defaultTimeout=120,  # seconds to wait for a solution
-    pollingInterval=5,  # seconds between res.php polls (API recommends 5)
-    server="24captcha.online",
-)
+config = {
+    "server": "24captcha.online",
+    "apiKey": "YOUR_API_KEY",
+    "defaultTimeout": 120,
+    "pollingInterval": 5,
+}
+solver = Captcha24(**config)
 ```
+
+### Captcha24 instance options
+
+| Option | Default value | Description |
+| ------ | ------------- | ----------- |
+| `server` | `24captcha.online` | API server host |
+| `apiKey` | — | Your client API key from the [dashboard](https://24captcha.online/dashboard/) |
+| `defaultTimeout` | `120` | Polling timeout in seconds. How long the module waits for an answer from `res.php` |
+| `pollingInterval` | `5` | Interval in seconds between requests to `res.php`. Values below 5 are not recommended |
 
 ## Solve captcha
 
@@ -156,8 +179,12 @@ asyncio.run(main())
 
 ## Examples
 
-See the [`examples`](examples/) directory.
+Examples of solving are located in the [`examples`](examples/) directory.
 
 ## License
 
-MIT
+The code in this repository is licensed under the MIT License. See the [LICENSE](./LICENSE) file for more details.
+
+### Graphics and Trademarks
+
+The graphics and trademarks included in this repository are not covered by the MIT License. Please contact <a href="mailto:info@24captcha.online">info</a> for permissions regarding the use of these materials.
