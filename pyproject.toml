@@ -34,6 +34,7 @@ dev = [
     "ruff",
     "pytest",
     "pytest-asyncio",
+    "python-dotenv",
 ]
 
 [project.urls]
@@ -58,5 +59,8 @@ quote-style = "double"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-q"
+markers = [
+    "live: integration tests with the real 24Captcha API",
+]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

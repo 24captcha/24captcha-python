@@ -5,6 +5,9 @@ on:
     branches: [main, master]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     # ubuntu-latest is 26.04+ and no longer provides Python 3.8/3.9 via setup-python
@@ -32,4 +35,4 @@ jobs:
         run: ruff format --check .
 
       - name: Pytest
-        run: pytest
+        run: python -m pytest -m "not live"
