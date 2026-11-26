@@ -7,18 +7,29 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: pypi-publish
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build and validate
     runs-on: ubuntu-22.04
     timeout-minutes: 15
+    if: ${{ !github.event.release.prerelease && !github.event.release.draft }}
 
     steps:
       - name: Checkout release
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
           persist-credentials: false
+
+      - name: Verify release commit is in main
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor HEAD origin/main
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -52,7 +63,11 @@ jobs:
           assert project["name"] == "24captcha-python"
 
           init_text = open("captcha24/__init__.py", encoding="utf-8").read()
-          match = re.search(r'^__version__\s*=\s*["\']([^"\']+)["\']', init_text, re.M)
+          match = re.search(
+              r"""^__version__\s*=\s*["']([^"']+)["']""",
+              init_text,
+              re.M,
+          )
           assert match, "__version__ not found in captcha24/__init__.py"
           assert match.group(1) == version, (
               f"captcha24.__version__ {match.group(1)} != pyproject version {version}"
